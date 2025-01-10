@@ -1,6 +1,7 @@
 [profile.default]
-src = "src"
-out = "out"
-libs = ["lib"]
-
+src = 'src'
+libs = ['lib']
+fallback_oz = true
+is_system = false # Note: NonceHolder and the ContractDeployer system contracts can only be called with a special isSystem flag as true
+mode = "3"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
