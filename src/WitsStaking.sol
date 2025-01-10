@@ -51,7 +51,9 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     event NFTStaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 duration);
     event NFTUnstaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker);
     event ContractPauseToggled(bool isPaused);
-    event TokensRecovered(address indexed token, address indexed recipient, uint256 amount);
+    event EthRecovered(address indexed recipient, uint256 amount);
+    event ERC20TokensRecovered(address indexed token, address indexed recipient, uint256 amount);
+    event ERC721TokensRecovered(address indexed token, address indexed recipient, uint256 tokenId);
 
     /* ========== ERRORS ========== */
 
@@ -143,7 +145,7 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
         (bool success,) = recipient.call{value: amount}("");
         if (!success) revert();
 
-        emit TokensRecovered(address(0), recipient, amount);
+        emit EthRecovered(recipient, amount);
     }
 
     /// @notice Recovers stuck ERC20 tokens from the contract
@@ -159,7 +161,7 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
         if (amount == 0) revert InvalidTokenAmount();
 
         IERC20(token).transfer(recipient, amount);
-        emit TokensRecovered(token, recipient, amount);
+        emit ERC20TokensRecovered(token, recipient, amount);
     }
 
     /// @notice Recovers stuck ERC721 tokens from the contract
@@ -174,7 +176,7 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
         if (recipient == address(0)) revert ZeroAddress();
 
         IERC721(token).transferFrom(address(this), recipient, tokenId);
-        emit TokensRecovered(token, recipient, tokenId);
+        emit ERC721TokensRecovered(token, recipient, tokenId);
     }
 
     /// @notice Emergency unstake function for admin
