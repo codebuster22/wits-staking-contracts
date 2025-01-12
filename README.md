@@ -3,6 +3,12 @@
 ## Overview
 This smart contract enables users to stake their NFTs for a specified duration and earn rewards. The contract supports multiple NFT collections and staking durations, with administrative controls for managing the staking ecosystem.
 
+## Deployments:
+1. Find the contract deployments in `deployments.json`
+2. Indexer is deployed on railway. Indexer can be accessed at: https://abs-indexer-testnet-production.up.railway.app/
+3. Find the ABIs in `exports/WitsStaking.json`.
+4. Use viem to fetch erc721abi.
+
 ## Deployment
 
 ### Prerequisites
