@@ -6,6 +6,7 @@ import { abstractTestnet } from "viem/chains";
 
 const witsStakingAddress = process.env.PONDER_WITS_STAKING_ADDRESS;
 const witsStakingStartBlock = process.env.PONDER_WITS_STAKING_START_BLOCK;
+const network = process.env.PONDER_NETWORK;
 
 if (!witsStakingAddress) {
   throw new Error("PONDER_WITS_STAKING_ADDRESS is not set");
@@ -13,6 +14,10 @@ if (!witsStakingAddress) {
 
 if (!witsStakingStartBlock) {
   throw new Error("PONDER_WITS_STAKING_START_BLOCK is not set");
+}
+
+if (!network) {
+  throw new Error("PONDER_NETWORK is not set");
 }
 
 export default createConfig({
@@ -28,7 +33,7 @@ export default createConfig({
   },
   contracts: {
     WitsStaking: {
-      network: "anvil",
+      network: network as "abstractTestnet" | "anvil",
       abi: WitsStakingAbi,
       address: witsStakingAddress as `0x${string}`,
       startBlock: parseInt(witsStakingStartBlock),
