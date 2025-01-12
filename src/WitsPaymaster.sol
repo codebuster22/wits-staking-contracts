@@ -9,18 +9,74 @@ import "@matterlabs/zksync-contracts/l2/system-contracts/Constants.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @author Matter Labs
-/// @notice This contract does not include any validations other than using the paymaster general flow.
-contract GeneralPaymaster is IPaymaster, Ownable {
-    constructor(address initialOwner) Ownable(initialOwner) {}
+contract WitsPaymaster is IPaymaster, Ownable {
+    // State Variables
+    uint256 public balanceMinThreshold;
+    mapping (address => bool) public allowedTargets;
+
+    // Events
+    event TargetAdded(address indexed target);
+    event TargetRemoved(address indexed target);
+    event Deposited(address indexed depositor, uint256 amount, uint256 newBalance);
+    event Withdrawn(address indexed to, uint256 amount);
+    event NotifyLowBalance(uint256 balance);
+    event BalanceMinThresholdSet(uint256 threshold);
+
+    // Errors
+    error ZeroAddress();
+    error TargetAlreadyAllowed();
+    error TargetNotAllowed();
+    error OnlyBootloader();
+    error InvalidPaymasterInput();
+    error UnsupportedPaymasterFlow();
+    error InsufficientBalance();
+    error WithdrawFailed();
+
+    // Modifiers
+    modifier onlyAllowedTarget(address target) {
+        _checkAllowedTarget(target);
+        _;
+    }
 
     modifier onlyBootloader() {
-        require(
-            msg.sender == BOOTLOADER_FORMAL_ADDRESS,
-            "Only bootloader can call this method"
-        );
+        if(msg.sender != BOOTLOADER_FORMAL_ADDRESS) revert OnlyBootloader();
         // Continue execution if called from the bootloader.
         _;
+    }
+
+    // Constructor
+    constructor(address initialOwner) Ownable(initialOwner) {}
+
+    // Owner only functions
+    function setBalanceMinThreshold(uint256 _threshold) external onlyOwner {
+        balanceMinThreshold = _threshold;
+        emit BalanceMinThresholdSet(_threshold);
+    }
+
+    function addAllowedTarget(address target) external onlyOwner {
+        if(target == address(0)) revert ZeroAddress();
+        if(allowedTargets[target]) revert TargetAlreadyAllowed();
+        allowedTargets[target] = true;
+        emit TargetAdded(target);
+    }
+
+    function removeAllowedTarget(address target) external onlyOwner {
+        if(target == address(0)) revert ZeroAddress();
+        if(!allowedTargets[target]) revert TargetNotAllowed();
+        allowedTargets[target] = false;
+        emit TargetRemoved(target);
+    }
+
+    function withdraw(address payable _to, uint256 _amount) external onlyOwner {
+        (bool success, ) = _to.call{value: _amount}("");
+        if(!success) revert WithdrawFailed();
+        emit Withdrawn(_to, _amount);
+    }
+
+    // External functions
+    function deposit() public payable {
+        uint256 newBalance = address(this).balance;
+        emit Deposited(msg.sender, msg.value, newBalance);
     }
 
     function validateAndPayForPaymasterTransaction(
@@ -31,14 +87,12 @@ contract GeneralPaymaster is IPaymaster, Ownable {
         external
         payable
         onlyBootloader
+        onlyAllowedTarget(_transaction.to)
         returns (bytes4 magic, bytes memory context)
     {
         // By default we consider the transaction as accepted.
         magic = PAYMASTER_VALIDATION_SUCCESS_MAGIC;
-        require(
-            _transaction.paymasterInput.length >= 4,
-            "The standard paymaster input must be at least 4 bytes long"
-        );
+        if(_transaction.paymasterInput.length < 4) revert InvalidPaymasterInput();
 
         bytes4 paymasterInputSelector = bytes4(
             _transaction.paymasterInput[0:4]
@@ -53,12 +107,10 @@ contract GeneralPaymaster is IPaymaster, Ownable {
             (bool success, ) = payable(BOOTLOADER_FORMAL_ADDRESS).call{
                 value: requiredETH
             }("");
-            require(
-                success,
-                "Failed to transfer tx fee to the Bootloader. Paymaster balance might not be enough."
-            );
+            if(!success) revert InsufficientBalance();
+            _checkBalanceAndNotify();
         } else {
-            revert("Unsupported paymaster flow in paymasterParams.");
+            revert UnsupportedPaymasterFlow();
         }
     }
 
@@ -71,11 +123,16 @@ contract GeneralPaymaster is IPaymaster, Ownable {
         uint256 _maxRefundedGas
     ) external payable override onlyBootloader {}
 
-    function withdraw(address payable _to) external onlyOwner {
-        uint256 balance = address(this).balance;
-        (bool success, ) = _to.call{value: balance}("");
-        require(success, "Failed to withdraw funds from paymaster.");
+    receive() external payable {
+        deposit();
     }
 
-    receive() external payable {}
+    // Internal functions
+    function _checkAllowedTarget(address target) internal view {
+        if (!allowedTargets[target]) revert TargetNotAllowed();
+    }
+
+    function _checkBalanceAndNotify() internal view {
+        if(address(this).balance < balanceMinThreshold) emit NotifyLowBalance(address(this).balance);
+    }
 }
