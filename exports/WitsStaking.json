@@ -77,12 +77,7 @@
     "name": "batchUnstakeNFTs",
     "inputs": [
       {
-        "name": "nftContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "tokenIds",
+        "name": "stakeIds",
         "type": "uint256[]",
         "internalType": "uint256[]"
       }
@@ -92,15 +87,34 @@
   },
   {
     "type": "function",
-    "name": "emergencyUnstake",
+    "name": "currentStakeIds",
     "inputs": [
       {
-        "name": "nftContract",
+        "name": "",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "tokenId",
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "emergencyUnstake",
+    "inputs": [
+      {
+        "name": "stakeId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -113,12 +127,7 @@
     "name": "getStakeInfo",
     "inputs": [
       {
-        "name": "nftContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
+        "name": "stakeId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -129,6 +138,16 @@
         "type": "tuple",
         "internalType": "struct WitsStaking.StakeInfo",
         "components": [
+          {
+            "name": "nftContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
           {
             "name": "staker",
             "type": "address",
@@ -388,16 +407,21 @@
     "inputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [
+      {
+        "name": "nftContract",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
       {
         "name": "staker",
         "type": "address",
@@ -470,12 +494,7 @@
     "name": "unstakeNFT",
     "inputs": [
       {
-        "name": "nftContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
+        "name": "stakeId",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -524,6 +543,75 @@
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ERC20TokensRecovered",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ERC721TokensRecovered",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EthRecovered",
+    "inputs": [
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -581,6 +669,12 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "stakeId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -606,6 +700,12 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "stakeId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -670,31 +770,6 @@
   },
   {
     "type": "event",
-    "name": "TokensRecovered",
-    "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "recipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Unpaused",
     "inputs": [
       {
@@ -743,7 +818,7 @@
   },
   {
     "type": "error",
-    "name": "NotTokenOwner",
+    "name": "NotOwnerOrStakingAlreadyExists",
     "inputs": []
   },
   {

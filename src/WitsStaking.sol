@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "forge-std/console.sol";
 
 /**
  * @title WitsStaking
@@ -23,8 +24,14 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     /// @notice Mapping of available staking durations (in seconds) to their status
     mapping(uint256 => bool) public stakingDurations;
 
-    /// @notice Mapping of token ID to its stake information for each NFT contract
-    mapping(address => mapping(uint256 => StakeInfo)) public stakes;
+    /// @notice Mapping of stake ID to stake information
+    mapping(uint256 => StakeInfo) public stakes;
+
+    /// @notice Mapping of NFT contract and token ID to current stake ID
+    mapping(address => mapping(uint256 => uint256)) public currentStakeIds;
+
+    /// @notice Counter for generating unique stake IDs
+    uint256 private nextStakeId;
 
     /// @notice Minimum staking duration
     uint256 public constant MIN_STAKE_DURATION = 1 hours;
@@ -35,11 +42,13 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     /* ========== STRUCTS ========== */
 
     struct StakeInfo {
-        address staker;           // Address of the NFT staker
-        uint256 startTime;        // Timestamp when staking started
-        uint256 endTime;          // Timestamp when staking ends
-        bool isStaked;           // Current stake status
-        uint256 stakeDuration;   // Duration selected for staking
+        address nftContract;     // Address of the NFT contract
+        uint256 tokenId;        // ID of the staked NFT
+        address staker;         // Address of the NFT staker
+        uint256 startTime;      // Timestamp when staking started
+        uint256 endTime;        // Timestamp when staking ends
+        bool isStaked;         // Current stake status
+        uint256 stakeDuration; // Duration selected for staking
     }
 
     /* ========== EVENTS ========== */
@@ -48,8 +57,8 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     event NFTContractRemoved(address indexed nftContract);
     event StakingDurationAdded(uint256 duration);
     event StakingDurationRemoved(uint256 duration);
-    event NFTStaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 duration);
-    event NFTUnstaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker);
+    event NFTStaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 duration, uint256 stakeId);
+    event NFTUnstaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 stakeId);
     event ContractPauseToggled(bool isPaused);
     event EthRecovered(address indexed recipient, uint256 amount);
     event ERC20TokensRecovered(address indexed token, address indexed recipient, uint256 amount);
@@ -61,7 +70,7 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     error NFTNotWhitelisted();
     error InvalidStakingDuration();
     error ContractPaused();
-    error NotTokenOwner();
+    error NotOwnerOrStakingAlreadyExists();
     error StakeNotFound();
     error StakeStillLocked();
     error StakeAlreadyExists();
@@ -71,7 +80,9 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(address initialOwner) Ownable(initialOwner) {
+        nextStakeId = 1;
+    }
 
     /* ========== MODIFIERS ========== */
 
@@ -180,19 +191,15 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     }
 
     /// @notice Emergency unstake function for admin
-    /// @param nftContract The NFT contract address
-    /// @param tokenId The token ID to unstake
-    function emergencyUnstake(
-        address nftContract,
-        uint256 tokenId
-    ) external onlyOwner {
-        StakeInfo storage stake = stakes[nftContract][tokenId];
+    /// @param stakeId The ID of the stake to unstake
+    function emergencyUnstake(uint256 stakeId) external onlyOwner {
+        StakeInfo storage stake = stakes[stakeId];
         if (!stake.isStaked) revert StakeNotFound();
 
         stake.isStaked = false;
-        IERC721(nftContract).transferFrom(address(this), stake.staker, tokenId);
+        IERC721(stake.nftContract).transferFrom(address(this), stake.staker, stake.tokenId);
 
-        emit NFTUnstaked(nftContract, tokenId, stake.staker);
+        emit NFTUnstaked(stake.nftContract, stake.tokenId, stake.staker, stakeId);
     }
 
     /* ========== USER FUNCTIONS ========== */
@@ -206,10 +213,13 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
         uint256 tokenId,
         uint256 duration
     ) external whenNotPaused onlyWhitelistedNFT(nftContract) validStakingDuration(duration) nonReentrant {
-        if (stakes[nftContract][tokenId].isStaked) revert StakeAlreadyExists();
-        if (IERC721(nftContract).ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        if (IERC721(nftContract).ownerOf(tokenId) != msg.sender) revert NotOwnerOrStakingAlreadyExists();
 
-        stakes[nftContract][tokenId] = StakeInfo({
+        uint256 stakeId = nextStakeId++;
+
+        stakes[stakeId] = StakeInfo({
+            nftContract: nftContract,
+            tokenId: tokenId,
             staker: msg.sender,
             startTime: block.timestamp,
             endTime: block.timestamp + duration,
@@ -217,8 +227,10 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
             stakeDuration: duration
         });
 
+        currentStakeIds[nftContract][tokenId] = stakeId;
+
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
-        emit NFTStaked(nftContract, tokenId, msg.sender, duration);
+        emit NFTStaked(nftContract, tokenId, msg.sender, duration, stakeId);
     }
 
     /// @notice Stakes multiple NFTs in a single transaction
@@ -233,10 +245,13 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
         uint256 length = tokenIds.length;
         for (uint256 i = 0; i < length;) {
             uint256 tokenId = tokenIds[i];
-            if (stakes[nftContract][tokenId].isStaked) revert StakeAlreadyExists();
-            if (IERC721(nftContract).ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+            if (IERC721(nftContract).ownerOf(tokenId) != msg.sender) revert NotOwnerOrStakingAlreadyExists();
 
-            stakes[nftContract][tokenId] = StakeInfo({
+            uint256 stakeId = nextStakeId++;
+
+            stakes[stakeId] = StakeInfo({
+                nftContract: nftContract,
+                tokenId: tokenId,
                 staker: msg.sender,
                 startTime: block.timestamp,
                 endTime: block.timestamp + duration,
@@ -244,51 +259,47 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
                 stakeDuration: duration
             });
 
+            currentStakeIds[nftContract][tokenId] = stakeId;
+
             IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
-            emit NFTStaked(nftContract, tokenId, msg.sender, duration);
+            emit NFTStaked(nftContract, tokenId, msg.sender, duration, stakeId);
 
             unchecked { ++i; }
         }
     }
 
     /// @notice Unstakes an NFT after the lock period
-    /// @param nftContract The NFT contract address
-    /// @param tokenId The token ID to unstake
-    function unstakeNFT(
-        address nftContract,
-        uint256 tokenId
-    ) external nonReentrant {
-        StakeInfo storage stake = stakes[nftContract][tokenId];
+    /// @param stakeId The ID of the stake to unstake
+    function unstakeNFT(uint256 stakeId) external nonReentrant {        
+        StakeInfo storage stake = stakes[stakeId];
+        console.log("Current timestamp in contract:", block.timestamp);
+        console.log("End time in contract:", stake.endTime);
         if (!stake.isStaked) revert StakeNotFound();
         if (stake.staker != msg.sender) revert UnauthorizedCaller();
         if (block.timestamp < stake.endTime) revert StakeStillLocked();
 
         stake.isStaked = false;
-        IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+        IERC721(stake.nftContract).transferFrom(address(this), msg.sender, stake.tokenId);
 
-        emit NFTUnstaked(nftContract, tokenId, msg.sender);
+        emit NFTUnstaked(stake.nftContract, stake.tokenId, msg.sender, stakeId);
     }
 
     /// @notice Unstakes multiple NFTs in a single transaction
-    /// @param nftContract The NFT contract address
-    /// @param tokenIds Array of token IDs to unstake
-    function batchUnstakeNFTs(
-        address nftContract,
-        uint256[] calldata tokenIds
-    ) external nonReentrant {
-        uint256 length = tokenIds.length;
+    /// @param stakeIds Array of stake IDs to unstake
+    function batchUnstakeNFTs(uint256[] calldata stakeIds) external nonReentrant {
+        uint256 length = stakeIds.length;
         for (uint256 i = 0; i < length;) {
-            uint256 tokenId = tokenIds[i];
-            StakeInfo storage stake = stakes[nftContract][tokenId];
+            uint256 stakeId = stakeIds[i];
+            StakeInfo storage stake = stakes[stakeId];
             
             if (!stake.isStaked) revert StakeNotFound();
             if (stake.staker != msg.sender) revert UnauthorizedCaller();
             if (block.timestamp < stake.endTime) revert StakeStillLocked();
 
             stake.isStaked = false;
-            IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
+            IERC721(stake.nftContract).transferFrom(address(this), msg.sender, stake.tokenId);
 
-            emit NFTUnstaked(nftContract, tokenId, msg.sender);
+            emit NFTUnstaked(stake.nftContract, stake.tokenId, msg.sender, stakeId);
 
             unchecked { ++i; }
         }
@@ -296,14 +307,10 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
 
     /* ========== VIEW FUNCTIONS ========== */
 
-    /// @notice Returns stake information for a given NFT
-    /// @param nftContract The NFT contract address
-    /// @param tokenId The token ID to query
-    function getStakeInfo(
-        address nftContract,
-        uint256 tokenId
-    ) external view returns (StakeInfo memory) {
-        return stakes[nftContract][tokenId];
+    /// @notice Returns stake information for a given stake ID
+    /// @param stakeId The stake ID to query
+    function getStakeInfo(uint256 stakeId) external view returns (StakeInfo memory) {
+        return stakes[stakeId];
     }
 
     /// @notice Checks if a staking duration is valid
@@ -319,7 +326,8 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
         address nftContract,
         uint256 tokenId
     ) external view returns (bool) {
-        return stakes[nftContract][tokenId].isStaked;
+        uint256 stakeId = currentStakeIds[nftContract][tokenId];
+        return stakes[stakeId].isStaked;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

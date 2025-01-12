@@ -26,10 +26,13 @@ contract WitsStakingTest is Test {
     event NFTContractRemoved(address indexed nftContract);
     event StakingDurationAdded(uint256 duration);
     event StakingDurationRemoved(uint256 duration);
-    event NFTStaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 duration);
-    event NFTUnstaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker);
+    event NFTStaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 duration, uint256 stakeId);
+    event NFTUnstaked(address indexed nftContract, uint256 indexed tokenId, address indexed staker, uint256 stakeId);
     event ContractPauseToggled(bool isPaused);
     event TokensRecovered(address indexed token, address indexed recipient, uint256 amount);
+    event EthRecovered(address indexed recipient, uint256 amount);
+    event ERC20TokensRecovered(address indexed token, address indexed recipient, uint256 amount);
+    event ERC721TokensRecovered(address indexed nftContract, address indexed recipient, uint256 tokenId);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -183,15 +186,20 @@ contract WitsStakingTest is Test {
         nft.approve(address(staking), tokenId);
         
         vm.expectEmit(true, true, true, true);
-        emit NFTStaked(address(nft), tokenId, alice, ONE_DAY);
+        emit NFTStaked(address(nft), tokenId, alice, ONE_DAY, 1);
         staking.stakeNFT(address(nft), tokenId, ONE_DAY);
         
-        WitsStaking.StakeInfo memory stakeInfo = staking.getStakeInfo(address(nft), tokenId);
+        WitsStaking.StakeInfo memory stakeInfo = staking.getStakeInfo(1);
+        assertEq(stakeInfo.nftContract, address(nft));
+        assertEq(stakeInfo.tokenId, tokenId);
         assertEq(stakeInfo.staker, alice);
         assertEq(stakeInfo.endTime, stakeInfo.startTime + ONE_DAY);
         assertTrue(stakeInfo.isStaked);
         assertEq(stakeInfo.stakeDuration, ONE_DAY);
         assertEq(nft.ownerOf(tokenId), address(staking));
+        
+        // Test currentStakeIds mapping
+        assertEq(staking.currentStakeIds(address(nft), tokenId), 1);
         vm.stopPrank();
     }
 
@@ -212,7 +220,13 @@ contract WitsStakingTest is Test {
         staking.batchStakeNFTs(address(nft), tokenIds, ONE_WEEK);
         
         for(uint256 i = 0; i < tokenIds.length; i++) {
-            assertTrue(staking.isNFTStaked(address(nft), tokenIds[i]));
+            uint256 stakeId = staking.currentStakeIds(address(nft), tokenIds[i]);
+            assertTrue(stakeId > 0, "Stake ID should be assigned");
+            
+            WitsStaking.StakeInfo memory stakeInfo = staking.getStakeInfo(stakeId);
+            assertTrue(stakeInfo.isStaked);
+            assertEq(stakeInfo.nftContract, address(nft));
+            assertEq(stakeInfo.tokenId, tokenIds[i]);
             assertEq(nft.ownerOf(tokenIds[i]), address(staking));
         }
         vm.stopPrank();
@@ -227,14 +241,17 @@ contract WitsStakingTest is Test {
         nft.approve(address(staking), tokenId);
         staking.stakeNFT(address(nft), tokenId, ONE_DAY);
         
+        uint256 stakeId = staking.currentStakeIds(address(nft), tokenId);
+        
         // Fast forward past lock period
         vm.warp(block.timestamp + ONE_DAY + 1);
         
-        vm.expectEmit(true, true, true, false);
-        emit NFTUnstaked(address(nft), tokenId, alice);
-        staking.unstakeNFT(address(nft), tokenId);
+        vm.expectEmit(true, true, true, true);
+        emit NFTUnstaked(address(nft), tokenId, alice, stakeId);
+        staking.unstakeNFT(stakeId);
         
-        assertFalse(staking.isNFTStaked(address(nft), tokenId));
+        WitsStaking.StakeInfo memory stakeInfo = staking.getStakeInfo(stakeId);
+        assertFalse(stakeInfo.isStaked);
         assertEq(nft.ownerOf(tokenId), alice);
         vm.stopPrank();
     }
@@ -254,13 +271,20 @@ contract WitsStakingTest is Test {
         }
         staking.batchStakeNFTs(address(nft), tokenIds, ONE_DAY);
         
+        // Collect stake IDs
+        uint256[] memory stakeIds = new uint256[](3);
+        for(uint256 i = 0; i < tokenIds.length; i++) {
+            stakeIds[i] = staking.currentStakeIds(address(nft), tokenIds[i]);
+        }
+        
         // Fast forward past lock period
         vm.warp(block.timestamp + ONE_DAY + 1);
         
-        staking.batchUnstakeNFTs(address(nft), tokenIds);
+        staking.batchUnstakeNFTs(stakeIds);
         
-        for(uint256 i = 0; i < tokenIds.length; i++) {
-            assertFalse(staking.isNFTStaked(address(nft), tokenIds[i]));
+        for(uint256 i = 0; i < stakeIds.length; i++) {
+            WitsStaking.StakeInfo memory stakeInfo = staking.getStakeInfo(stakeIds[i]);
+            assertFalse(stakeInfo.isStaked);
             assertEq(nft.ownerOf(tokenIds[i]), alice);
         }
         vm.stopPrank();
@@ -291,7 +315,7 @@ contract WitsStakingTest is Test {
 
         // Try staking someone else's NFT
         vm.startPrank(bob);
-        vm.expectRevert(WitsStaking.NotTokenOwner.selector);
+        vm.expectRevert(WitsStaking.NotOwnerOrStakingAlreadyExists.selector);
         staking.stakeNFT(address(nft), tokenId, ONE_DAY);
         vm.stopPrank();
 
@@ -315,24 +339,71 @@ contract WitsStakingTest is Test {
         vm.startPrank(alice);
         nft.approve(address(staking), tokenId);
         staking.stakeNFT(address(nft), tokenId, ONE_DAY);
+        uint256 stakeId = staking.currentStakeIds(address(nft), tokenId);
         vm.stopPrank();
 
         // Try unstaking before lock period
         vm.startPrank(alice);
         vm.expectRevert(WitsStaking.StakeStillLocked.selector);
-        staking.unstakeNFT(address(nft), tokenId);
+        staking.unstakeNFT(stakeId);
         vm.stopPrank();
 
         // Try unstaking someone else's stake
         vm.startPrank(bob);
         vm.expectRevert(WitsStaking.UnauthorizedCaller.selector);
-        staking.unstakeNFT(address(nft), tokenId);
+        staking.unstakeNFT(stakeId);
         vm.stopPrank();
 
         // Try unstaking non-existent stake
         vm.startPrank(alice);
         vm.expectRevert(WitsStaking.StakeNotFound.selector);
-        staking.unstakeNFT(address(nft), 999);
+        staking.unstakeNFT(999);
+        vm.stopPrank();
+    }
+
+    /// @notice Test batch unstaking failures
+    /// Test case: Various invalid batch unstaking attempts
+    /// Expected: All should revert with appropriate errors
+    function testBatchUnstakingFailures() public {
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+        tokenIds[2] = 3;
+
+        // Setup stakes
+        vm.startPrank(alice);
+        for(uint256 i = 0; i < tokenIds.length; i++) {
+            nft.approve(address(staking), tokenIds[i]);
+        }
+        staking.batchStakeNFTs(address(nft), tokenIds, ONE_DAY);
+        
+        // Collect stake IDs
+        uint256[] memory stakeIds = new uint256[](3);
+        for(uint256 i = 0; i < tokenIds.length; i++) {
+            stakeIds[i] = staking.currentStakeIds(address(nft), tokenIds[i]);
+        }
+        vm.stopPrank();
+
+        // Try unstaking before lock period
+        vm.startPrank(alice);
+        vm.expectRevert(WitsStaking.StakeStillLocked.selector);
+        staking.batchUnstakeNFTs(stakeIds);
+        vm.stopPrank();
+
+        // Try unstaking someone else's stakes
+        vm.startPrank(bob);
+        vm.expectRevert(WitsStaking.UnauthorizedCaller.selector);
+        staking.batchUnstakeNFTs(stakeIds);
+        vm.stopPrank();
+
+        // Try unstaking with non-existent stake in batch
+        uint256[] memory invalidStakeIds = new uint256[](2);
+        invalidStakeIds[0] = 999;
+        invalidStakeIds[1] = 1000;
+        
+        vm.startPrank(alice);
+        vm.expectRevert(WitsStaking.StakeNotFound.selector);
+        staking.batchUnstakeNFTs(invalidStakeIds);
         vm.stopPrank();
     }
 
@@ -347,12 +418,15 @@ contract WitsStakingTest is Test {
         staking.stakeNFT(address(nft), tokenId, ONE_MONTH);
         vm.stopPrank();
 
+        uint256 stakeId = staking.currentStakeIds(address(nft), tokenId);
+
         vm.startPrank(owner);
-        vm.expectEmit(true, true, true, false);
-        emit NFTUnstaked(address(nft), tokenId, alice);
-        staking.emergencyUnstake(address(nft), tokenId);
+        vm.expectEmit(true, true, true, true);
+        emit NFTUnstaked(address(nft), tokenId, alice, stakeId);
+        staking.emergencyUnstake(stakeId);
         
-        assertFalse(staking.isNFTStaked(address(nft), tokenId));
+        WitsStaking.StakeInfo memory stakeInfo = staking.getStakeInfo(stakeId);
+        assertFalse(stakeInfo.isStaked);
         assertEq(nft.ownerOf(tokenId), alice);
         vm.stopPrank();
     }
@@ -365,7 +439,7 @@ contract WitsStakingTest is Test {
         vm.deal(address(staking), 1 ether);
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
-        emit TokensRecovered(address(0), owner, 1 ether);
+        emit EthRecovered(owner, 1 ether);
         staking.recoverETH(owner, 1 ether);
         assertEq(address(owner).balance, 1 ether);
         vm.stopPrank();
@@ -374,7 +448,7 @@ contract WitsStakingTest is Test {
         token.mint(address(staking), 1000);
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
-        emit TokensRecovered(address(token), owner, 1000);
+        emit ERC20TokensRecovered(address(token), owner, 1000);
         staking.recoverERC20(address(token), owner, 1000);
         assertEq(token.balanceOf(owner), 1000);
         vm.stopPrank();
@@ -388,7 +462,7 @@ contract WitsStakingTest is Test {
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
-        emit TokensRecovered(address(nft2), owner, tokenId);
+        emit ERC721TokensRecovered(address(nft2), owner, tokenId);
         staking.recoverERC721(address(nft2), owner, tokenId);
         assertEq(nft2.ownerOf(tokenId), owner);
         vm.stopPrank();
@@ -446,7 +520,12 @@ contract WitsStakingTest is Test {
         nft.approve(address(staking), tokenId);
         staking.stakeNFT(address(nft), tokenId, ONE_DAY);
         
-        vm.expectRevert(WitsStaking.StakeAlreadyExists.selector);
+        // Verify the NFT is staked
+        uint256 currentStakeId = staking.currentStakeIds(address(nft), tokenId);
+        assertTrue(currentStakeId > 0, "NFT should be staked");
+        
+        // Try to stake again - no need to approve since we expect it to revert before approval check
+        vm.expectRevert(WitsStaking.NotOwnerOrStakingAlreadyExists.selector);
         staking.stakeNFT(address(nft), tokenId, ONE_DAY);
         vm.stopPrank();
     }
@@ -468,49 +547,12 @@ contract WitsStakingTest is Test {
         // First stake one NFT
         staking.stakeNFT(address(nft), tokenIds[0], ONE_DAY);
         
-        // Try to batch stake including the already staked NFT
-        vm.expectRevert(WitsStaking.StakeAlreadyExists.selector);
-        staking.batchStakeNFTs(address(nft), tokenIds, ONE_DAY);
-        vm.stopPrank();
-    }
-
-    /// @notice Test batch unstaking failures
-    /// Test case: Various invalid batch unstaking attempts
-    /// Expected: All should revert with appropriate errors
-    function testBatchUnstakingFailures() public {
-        uint256[] memory tokenIds = new uint256[](3);
-        tokenIds[0] = 1;
-        tokenIds[1] = 2;
-        tokenIds[2] = 3;
-
-        // Setup stakes
-        vm.startPrank(alice);
-        for(uint256 i = 0; i < tokenIds.length; i++) {
-            nft.approve(address(staking), tokenIds[i]);
-        }
-        staking.batchStakeNFTs(address(nft), tokenIds, ONE_DAY);
-        vm.stopPrank();
-
-        // Try unstaking before lock period
-        vm.startPrank(alice);
-        vm.expectRevert(WitsStaking.StakeStillLocked.selector);
-        staking.batchUnstakeNFTs(address(nft), tokenIds);
-        vm.stopPrank();
-
-        // Try unstaking someone else's stakes
-        vm.startPrank(bob);
-        vm.expectRevert(WitsStaking.UnauthorizedCaller.selector);
-        staking.batchUnstakeNFTs(address(nft), tokenIds);
-        vm.stopPrank();
-
-        // Try unstaking with non-existent stake in batch
-        uint256[] memory invalidTokenIds = new uint256[](2);
-        invalidTokenIds[0] = 11;
-        invalidTokenIds[1] = 999;
+        // Verify the NFT is staked
+        uint256 currentStakeId = staking.currentStakeIds(address(nft), tokenIds[0]);
+        assertTrue(currentStakeId > 0, "NFT should be staked");
         
-        vm.startPrank(alice);
-        vm.expectRevert(WitsStaking.StakeNotFound.selector);
-        staking.batchUnstakeNFTs(address(nft), invalidTokenIds);
+        vm.expectRevert(WitsStaking.NotOwnerOrStakingAlreadyExists.selector);
+        staking.batchStakeNFTs(address(nft), tokenIds, ONE_DAY);
         vm.stopPrank();
     }
 
@@ -520,7 +562,7 @@ contract WitsStakingTest is Test {
     function testEmergencyUnstakeNonExistent() public {
         vm.startPrank(owner);
         vm.expectRevert(WitsStaking.StakeNotFound.selector);
-        staking.emergencyUnstake(address(nft), 999);
+        staking.emergencyUnstake(999);
         vm.stopPrank();
     }
 
@@ -608,7 +650,7 @@ contract WitsStakingTest is Test {
             }
         }
         
-        vm.expectRevert(WitsStaking.NotTokenOwner.selector);
+        vm.expectRevert(WitsStaking.NotOwnerOrStakingAlreadyExists.selector);
         staking.batchStakeNFTs(address(nft), tokenIds, ONE_DAY);
         vm.stopPrank();
     }

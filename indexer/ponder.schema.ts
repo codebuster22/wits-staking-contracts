@@ -27,6 +27,7 @@ export const nftRelation = relations(nft, ({ one }) => ({
 // Stores information about individual NFT stakes
 export const stake = onchainTable("stake", (t) => ({
   id: t.hex().primaryKey(), // Unique identifier for the stake
+  contractStakeId: t.bigint().notNull(), // ID of the staked NFT token
   nftContractId: t.hex().notNull(), // Address of the NFT contract // references to nftContract.id
   nftId: t.hex().notNull(), // ID of the staked NFT token
   stakerId: t.hex().notNull(), // Address of the staker
@@ -36,7 +37,7 @@ export const stake = onchainTable("stake", (t) => ({
   stakeDuration: t.bigint().notNull(), // Duration of the stake in seconds
   isStaked: t.boolean().notNull(), // Whether the NFT is currently staked
   stakeTxId: t.hex().notNull(), // Transaction hash of the stake
-  unstakeTxId: t.hex().notNull(), // Transaction hash of the unstake
+  unstakeTxId: t.hex(), // Transaction hash of the unstake
 }));
 
 export const stakeRelation = relations(stake, ({ one }) => ({
@@ -88,6 +89,12 @@ export const stakeDuration = onchainTable("stake_duration", (t) => ({
   id: t.hex().primaryKey(), // Unique identifier for the duration option
   duration: t.bigint().notNull(), // Duration in seconds
   isActive: t.boolean().notNull(), // Whether this duration option is currently active
+}));
+
+export const stakeDurationRelation = relations(stakeDuration, ({ many }) => ({
+  stakes: many(stake),
+  stakingDurationAdditions: many(stakingDurationAddition),
+  stakingDurationRemovals: many(stakingDurationRemoval),
 }));
 
 
@@ -160,62 +167,32 @@ export const stakingDurationRemovalRelation = relations(stakingDurationRemoval, 
 // Records NFT staking events
 export const nftStaked = onchainTable('nft_staked', (t) => ({
   id: t.hex().primaryKey(), // Unique identifier for the stake event
-  nftContractId: t.hex().notNull(), // Address of the NFT contract
-  nftId: t.hex().notNull(), // ID of the staked NFT token
-  stakerId: t.hex().notNull(), // Address of the staker
-  durationId: t.hex().notNull(), // ID of the chosen stake duration
+  stakeId: t.hex().notNull(), // ID of the stake
   blockNumber: t.bigint().notNull(), // Block number when stake occurred
   blockTimestamp: t.bigint().notNull(), // Timestamp of the block
   transactionHash: t.hex().notNull(), // Transaction hash of the stake event
 }));
 
 export const nftStakedRelation = relations(nftStaked, ({ one }) => ({
-  nft: one(nft, {
-    fields: [nftStaked.nftId],
-    references: [nft.id],
-  }),
-  nftContract: one(nftContract, {
-    fields: [nftStaked.nftContractId],
-    references: [nftContract.id],
-  }),
-  staker: one(user, {
-    fields: [nftStaked.stakerId],
-    references: [user.id],
-  }),
-  duration: one(stakeDuration, {
-    fields: [nftStaked.durationId],
-    references: [stakeDuration.id],
+  stake: one(stake, {
+    fields: [nftStaked.stakeId],
+    references: [stake.id],
   }),
 }));
 
 // Records NFT unstaking events
 export const nftUnstaked = onchainTable('nft_unstaked', (t) => ({
   id: t.hex().primaryKey(), // Unique identifier for the unstake event
-  nftContractId: t.hex().notNull(), // Address of the NFT contract
-  nftId: t.hex().notNull(), // ID of the unstaked NFT token
-  stakerId: t.hex().notNull(), // Address of the staker
-  durationId: t.hex().notNull(), // ID of the stake duration
+  stakeId: t.hex().notNull(), // ID of the stake
   blockNumber: t.bigint().notNull(), // Block number when unstake occurred
   blockTimestamp: t.bigint().notNull(), // Timestamp of the block
   transactionHash: t.hex().notNull(), // Transaction hash of the unstake event
 }));
 
 export const nftUnstakedRelation = relations(nftUnstaked, ({ one }) => ({
-  nft: one(nft, {
-    fields: [nftUnstaked.nftId],
-    references: [nft.id],
-  }),
-  nftContract: one(nftContract, {
-    fields: [nftUnstaked.nftContractId],
-    references: [nftContract.id],
-  }),
-  staker: one(user, {
-    fields: [nftUnstaked.stakerId],
-    references: [user.id],
-  }),
-  duration: one(stakeDuration, {
-    fields: [nftUnstaked.durationId],
-    references: [stakeDuration.id],
+  stake: one(stake, {
+    fields: [nftUnstaked.stakeId],
+    references: [stake.id],
   }),
 }));
 

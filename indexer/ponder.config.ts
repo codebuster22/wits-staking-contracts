@@ -21,10 +21,14 @@ export default createConfig({
       chainId: abstractTestnet.id,
       transport: http(process.env.PONDER_RPC_URL_ABSTRACT_TESTNET),
     },
+    anvil: {
+      chainId: 260,
+      transport: http(process.env.PONDER_RPC_URL_ANVIL),
+    },
   },
   contracts: {
     WitsStaking: {
-      network: "abstractTestnet",
+      network: "anvil",
       abi: WitsStakingAbi,
       address: witsStakingAddress as `0x${string}`,
       startBlock: parseInt(witsStakingStartBlock),

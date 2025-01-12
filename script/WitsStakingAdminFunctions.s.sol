@@ -112,4 +112,16 @@ contract RecoverERC721 is BaseScript {
         console.log("Recovered NFT %s from %s to %s", tokenId, token, recipient);
         vm.stopBroadcast();
     }
+}
+
+contract EmergencyUnstake is BaseScript {
+    function run() public {
+        address owner = vm.envAddress("OWNER");
+        uint256 stakeId = vm.envUint("STAKE_ID");
+
+        vm.startBroadcast(owner);
+        staking.emergencyUnstake(stakeId);
+        console.log("Emergency unstaked NFT with stake ID: %s", stakeId);
+        vm.stopBroadcast();
+    }
 } 

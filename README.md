@@ -37,6 +37,11 @@ forge script script/WitsStaking.s.sol:WitsStakingScript \
     --broadcast
 ```
 
+forge script script/DummyDataScript.s.sol:DummyDataScript \
+    --rpc-url ${RPC_URL} \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast
+
 2. Deploy and verify on Etherscan:
 ```bash
 forge script script/WitsStaking.s.sol:WitsStakingScript \
