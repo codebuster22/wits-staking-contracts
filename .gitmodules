@@ -7,3 +7,6 @@
 [submodule "lib/multicall3"]
 	path = lib/multicall3
 	url = https://github.com/EthereumClassicDAO/multicall3
+[submodule "lib/era-contracts"]
+	path = lib/era-contracts
+	url = https://github.com/matter-labs/era-contracts
