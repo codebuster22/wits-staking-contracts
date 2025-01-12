@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "forge-std/console.sol";
 
 /**
  * @title WitsStaking
@@ -272,8 +271,6 @@ contract WitsStaking is Ownable, Pausable, ReentrancyGuard, IERC721Receiver {
     /// @param stakeId The ID of the stake to unstake
     function unstakeNFT(uint256 stakeId) external nonReentrant {        
         StakeInfo storage stake = stakes[stakeId];
-        console.log("Current timestamp in contract:", block.timestamp);
-        console.log("End time in contract:", stake.endTime);
         if (!stake.isStaked) revert StakeNotFound();
         if (stake.staker != msg.sender) revert UnauthorizedCaller();
         if (block.timestamp < stake.endTime) revert StakeStillLocked();
