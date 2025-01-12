@@ -31,25 +31,22 @@ ETHERSCAN_API_KEY=<key>     # API key for Etherscan verification
 
 1. Deploy without verification:
 ```bash
-forge script script/WitsStaking.s.sol:WitsStakingScript \
+forge script script/WitsStaking.s.sol:WitsStakingScript --zksync \
     --rpc-url ${RPC_URL} \
     --private-key ${PRIVATE_KEY} \
     --broadcast
 ```
 
-forge script script/DummyDataScript.s.sol:DummyDataScript \
-    --rpc-url ${RPC_URL} \
-    --private-key ${PRIVATE_KEY} \
-    --broadcast
-
 2. Deploy and verify on Etherscan:
 ```bash
-forge script script/WitsStaking.s.sol:WitsStakingScript \
+forge script script/WitsStaking.s.sol:WitsStakingScript --zksync \
     --rpc-url ${RPC_URL} \
     --private-key ${PRIVATE_KEY} \
     --broadcast \
     --verify \
-    --etherscan-api-key ${ETHERSCAN_API_KEY}
+    --verifier zksync \
+    --verifier-url https://api-explorer-verify.testnet.abs.xyz/contract_verification
+
 ```
 
 3. Deploy and verify on Sourcify:
