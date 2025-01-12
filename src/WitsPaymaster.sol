@@ -87,7 +87,7 @@ contract WitsPaymaster is IPaymaster, Ownable {
         external
         payable
         onlyBootloader
-        onlyAllowedTarget(_transaction.to)
+        onlyAllowedTarget(address(uint160(_transaction.to)))
         returns (bytes4 magic, bytes memory context)
     {
         // By default we consider the transaction as accepted.
@@ -132,7 +132,7 @@ contract WitsPaymaster is IPaymaster, Ownable {
         if (!allowedTargets[target]) revert TargetNotAllowed();
     }
 
-    function _checkBalanceAndNotify() internal view {
+    function _checkBalanceAndNotify() internal {
         if(address(this).balance < balanceMinThreshold) emit NotifyLowBalance(address(this).balance);
     }
 }

@@ -43,6 +43,14 @@ forge script script/WitsStaking.s.sol:WitsStakingScript --zksync \
     --broadcast
 ```
 
+```bash
+# Deploy the paymaster
+forge script script/WitsPaymaster.s.sol:WitsPaymasterScript --zksync \
+    --rpc-url $RPC_URL \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast
+```
+
 2. Deploy and verify on Etherscan:
 ```bash
 forge script script/WitsStaking.s.sol:WitsStakingScript --zksync \
@@ -53,6 +61,17 @@ forge script script/WitsStaking.s.sol:WitsStakingScript --zksync \
     --verifier zksync \
     --verifier-url https://api-explorer-verify.testnet.abs.xyz/contract_verification
 
+```
+
+```bash
+# Deploy the paymaster
+forge script script/WitsPaymaster.s.sol:WitsPaymasterScript --zksync \
+    --rpc-url $RPC_URL \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast \
+    --verify \
+    --verifier zksync \
+    --verifier-url https://api-explorer-verify.testnet.abs.xyz/contract_verification
 ```
 
 3. Deploy and verify on Sourcify:
@@ -139,6 +158,40 @@ forge script script/WitsStakingAdminFunctions.s.sol:RecoverERC721 \
     --rpc-url ${RPC_URL} \
     --private-key ${PRIVATE_KEY} \
     --broadcast
+```
+
+```bash
+# Deposit
+forge script script/WitsPaymaster.s.sol:WitsPaymasterAdminScript --zksync \
+    --sig "deposit()" \
+    --rpc-url $RPC_URL \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast \
+    -vvvv
+
+# Withdraw
+forge script script/WitsPaymaster.s.sol:WitsPaymasterAdminScript --zksync \
+    --sig "withdraw()" \
+    --rpc-url $RPC_URL \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast \
+    -vvvv
+
+# Add target contract
+forge script script/WitsPaymaster.s.sol:WitsPaymasterAdminScript --zksync \
+    --sig "addTarget()" \
+    --rpc-url $RPC_URL \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast \
+    -vvvv
+
+# Remove target contract
+forge script script/WitsPaymaster.s.sol:WitsPaymasterAdminScript --zksync \
+    --sig "removeTarget()" \
+    --rpc-url $RPC_URL \
+    --private-key ${PRIVATE_KEY} \
+    --broadcast \
+    -vvvv
 ```
 
 #### Option 2: Using Bulk Setup Script
