@@ -1,5 +1,5 @@
 import { ponder } from "ponder:registry";
-import { nftStaked, nftUnstaked, stake, user } from "ponder:schema";
+import { nft, nftStaked, nftUnstaked, stake, user } from "ponder:schema";
 import { generateDurationId, generateNftContractId, generateNftId, generateNftStakedId, generateNftUnstakedId, generateStakeId, generateUserId } from "./utils";
 
 ponder.on("WitsStaking:NFTStaked", async ({event, context}) => {
@@ -20,6 +20,12 @@ ponder.on("WitsStaking:NFTStaked", async ({event, context}) => {
     await db.insert(user).values({
         id: stakerId,
         address: args.staker,
+    }).onConflictDoNothing();
+
+    await db.insert(nft).values({
+        id: nftId,
+        nftContractId: nftContractId,
+        tokenId: args.tokenId,
     }).onConflictDoNothing();
 
     // insert stake

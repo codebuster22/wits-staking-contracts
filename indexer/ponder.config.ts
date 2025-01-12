@@ -23,7 +23,7 @@ export default createConfig({
     },
     anvil: {
       chainId: 260,
-      transport: http(process.env.PONDER_RPC_URL_ANVIL),
+      transport: http(process.env.PONDER_RPC_URL_ANVIL)
     },
   },
   contracts: {

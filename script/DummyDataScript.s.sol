@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {WitsStaking} from "../src/WitsStaking.sol";
 import {MockERC721} from "../test/mocks/MockERC721.sol";
 import {MockERC20} from "../test/mocks/MockERC20.sol";
+import {Multicall3} from "./Multicall3.sol";
 
 contract DummyDataScript is Script {
     WitsStaking public staking;
@@ -20,6 +21,10 @@ contract DummyDataScript is Script {
     mapping(address => uint256) public userPrivateKeys;
 
     function setUp() public {
+        vm.startBroadcast();
+        Multicall3 multicall = new Multicall3();
+        console.log("Multicall3 deployed at:", address(multicall));
+        vm.stopBroadcast();
         owner = vm.envAddress("OWNER");
         uint256 ownerKey = vm.envUint("PRIVATE_KEY");
         staking = WitsStaking(vm.envAddress("STAKING_ADDRESS"));

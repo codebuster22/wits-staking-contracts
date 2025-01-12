@@ -11,6 +11,13 @@ export const globalState = onchainTable("global_state", (t) => ({
   ownerId: t.hex().notNull(), // Address of the contract owner
 }));
 
+export const globalStateRelation = relations(globalState, ({ one }) => ({
+  owner: one(user, {
+    fields: [globalState.ownerId],
+    references: [user.id],
+  }),
+}));
+
 export const nft = onchainTable("nft", (t) => ({
   id: t.hex().primaryKey(), // Unique identifier for the NFT
   nftContractId: t.hex().notNull(), // Address of the NFT contract // references to nftContract.id
