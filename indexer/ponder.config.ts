@@ -1,15 +1,20 @@
 import { createConfig } from "ponder";
-import { http } from "viem";
+import { erc721Abi, http } from "viem";
 
 import { WitsStakingAbi } from "./abis/WitsStaking";
 import { abstractTestnet } from "viem/chains";
 
 const witsStakingAddress = process.env.PONDER_WITS_STAKING_ADDRESS;
+const nftContractAddress = process.env.PONDER_NFT_CONTRACT_ADDRESS;
 const witsStakingStartBlock = process.env.PONDER_WITS_STAKING_START_BLOCK;
 const network = process.env.PONDER_NETWORK;
 
 if (!witsStakingAddress) {
   throw new Error("PONDER_WITS_STAKING_ADDRESS is not set");
+}
+
+if (!nftContractAddress) {
+  throw new Error("PONDER_NFT_CONTRACT_ADDRESS is not set");
 }
 
 if (!witsStakingStartBlock) {
@@ -36,6 +41,12 @@ export default createConfig({
       network: network as "abstractTestnet" | "anvil",
       abi: WitsStakingAbi,
       address: witsStakingAddress as `0x${string}`,
+      startBlock: parseInt(witsStakingStartBlock),
+    },
+    NFTContract: {
+      network: network as "abstractTestnet" | "anvil",
+      abi: erc721Abi,
+      address: nftContractAddress as `0x${string}`,
       startBlock: parseInt(witsStakingStartBlock),
     },
   },

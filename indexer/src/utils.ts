@@ -64,3 +64,8 @@ export const generateGlobalStateId = (address: `0x${string}`) => {
   export const generateStakeId = (stakeId: bigint) => {
     return keccak256(toHex(`stake_${stakeId}`));
   }
+
+  // generateId for nft ownership
+  export const generateNftOwnershipId = (nftTokenId: bigint) => {
+    return keccak256(toHex(`nft_ownership_${nftTokenId}`));
+  }

@@ -82,6 +82,7 @@ export const user = onchainTable("user", (t) => ({
 
 export const userRelation = relations(user, ({ many }) => ({
   stakes: many(stake),
+  ownedNfts: many(nftOwnership),
 }));
 
 // Stores information about whitelisted NFT contracts
@@ -272,3 +273,19 @@ export const erc721TokenRecoveredRelation = relations(erc721TokenRecovered, ({ o
     references: [user.id],
   }),
 }));
+
+// Stores NFT ownership information
+export const nftOwnership = onchainTable("nft_ownership", (t) => ({
+  id: t.hex().primaryKey(), // Unique identifier for the ownership record
+  nftTokenId: t.bigint().notNull(), // Reference to the NFT
+  ownerId: t.hex().notNull(), // Reference to the owner (user)
+}));
+
+export const nftOwnershipRelation = relations(nftOwnership, ({ one }) => ({
+  owner: one(user, {
+    fields: [nftOwnership.ownerId],
+    references: [user.id],
+  }),
+}));
+
+
