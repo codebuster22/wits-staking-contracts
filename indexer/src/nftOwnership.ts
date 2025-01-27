@@ -22,6 +22,7 @@ ponder.on("NFTContract:Transfer", async ({event, context}) => {
     // create the nft ownership record
     await db.insert(nftOwnership).values({
         id: nftOwnershipId,
+        nftContractAddress: contracts.NFTContract.address,
         nftTokenId: args.tokenId,
         ownerId: newOwnerId,
     }).onConflictDoUpdate((row) => {

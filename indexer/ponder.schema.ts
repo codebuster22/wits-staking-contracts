@@ -278,6 +278,7 @@ export const erc721TokenRecoveredRelation = relations(erc721TokenRecovered, ({ o
 export const nftOwnership = onchainTable("nft_ownership", (t) => ({
   id: t.hex().primaryKey(), // Unique identifier for the ownership record
   nftTokenId: t.bigint().notNull(), // Reference to the NFT
+  nftContractAddress: t.hex().notNull(), // Reference to the NFT contract
   ownerId: t.hex().notNull(), // Reference to the owner (user)
 }));
 
