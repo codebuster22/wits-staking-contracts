@@ -5,7 +5,7 @@ This smart contract enables users to stake their NFTs for a specified duration a
 
 ## Deployments:
 1. Find the contract deployments in `deployments.json`
-2. Indexer is deployed on railway. Indexer can be accessed at: https://abs-indexer-testnet-production.up.railway.app/
+2. Indexer is deployed on railway. Indexer can be accessed at: https://abs-indexer-testnet-production.up.railway.app/. Check out the docs here to deploy the indexer: [Deploy Ponder](https://ponder.sh/docs/production/deploy)
 3. Find the ABIs in `exports/WitsStaking.json`.
 4. Use viem to fetch erc721abi.
 
