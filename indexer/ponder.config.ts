@@ -2,7 +2,7 @@ import { createConfig } from "ponder";
 import { erc721Abi, http } from "viem";
 
 import { WitsStakingAbi } from "./abis/WitsStaking";
-import { abstractTestnet } from "viem/chains";
+import { abstract, abstractTestnet } from "viem/chains";
 
 const witsStakingAddress = process.env.PONDER_WITS_STAKING_ADDRESS;
 const nftContractAddress = process.env.PONDER_NFT_CONTRACT_ADDRESS;
@@ -31,6 +31,10 @@ export default createConfig({
       chainId: abstractTestnet.id,
       transport: http(process.env.PONDER_RPC_URL_ABSTRACT_TESTNET),
     },
+    abstractMainnet: {
+      chainId: abstract.id,
+      transport: http(process.env.PONDER_RPC_URL_ABSTRACT_MAINNET),
+    },
     anvil: {
       chainId: 260,
       transport: http(process.env.PONDER_RPC_URL_ANVIL)
@@ -38,16 +42,16 @@ export default createConfig({
   },
   contracts: {
     WitsStaking: {
-      network: network as "abstractTestnet" | "anvil",
+      network: network as "abstractTestnet" | "abstractMainnet" | "anvil",
       abi: WitsStakingAbi,
       address: witsStakingAddress as `0x${string}`,
       startBlock: parseInt(witsStakingStartBlock),
     },
     NFTContract: {
-      network: network as "abstractTestnet" | "anvil",
+      network: network as "abstractTestnet" | "abstractMainnet" | "anvil",
       abi: erc721Abi,
       address: nftContractAddress as `0x${string}`,
       startBlock: parseInt(witsStakingStartBlock),
-    },
-  },
+    }
+  }
 });
