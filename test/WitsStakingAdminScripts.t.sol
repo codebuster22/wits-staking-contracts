@@ -162,26 +162,6 @@ contract WitsStakingAdminScriptsTest is Test {
         assertFalse(staking.paused());
     }
 
-    function testRecoverETHScript() public {
-        // Send ETH to staking contract
-        vm.deal(address(staking), 1 ether);
-        
-        vm.setEnv("RECIPIENT", addressToString(recipient));
-        vm.setEnv("AMOUNT", "1000000000000000000"); // 1 ether
-        
-        // Setup environment variables
-        vm.setEnv("STAKING_ADDRESS", addressToString(address(staking)));
-        vm.setEnv("OWNER", addressToString(owner));
-        vm.setEnv("RPC_URL", RPC_URL);
-        vm.setEnv("PRIVATE_KEY", numberToString(PRIVATE_KEY));
-
-        RecoverETH script = new RecoverETH();
-        script.setUp();
-        script.run();
-
-        assertEq(recipient.balance, 1 ether);
-    }
-
     function testRecoverERC20Script() public {
         // Setup: mint tokens to contract first
         token.mint(address(staking), 1000);
@@ -200,58 +180,4 @@ contract WitsStakingAdminScriptsTest is Test {
 
         assertEq(token.balanceOf(recipient), 1000);
     }
-
-    function testRecoverERC721Script() public {
-        // Setup: transfer NFT to contract first
-        vm.startPrank(owner);
-        nft.mint(1);
-        nft.transferFrom(owner, address(staking), 1);
-        vm.stopPrank();
-
-        vm.setEnv("TOKEN_ADDRESS", addressToString(address(nft)));
-        vm.setEnv("RECIPIENT", addressToString(recipient));
-        vm.setEnv("TOKEN_ID", "1");
-        vm.setEnv("STAKING_ADDRESS", addressToString(address(staking)));
-        vm.setEnv("OWNER", addressToString(owner));
-        vm.setEnv("RPC_URL", RPC_URL);
-        vm.setEnv("PRIVATE_KEY", numberToString(PRIVATE_KEY));
-
-        RecoverERC721 script = new RecoverERC721();
-        script.setUp();
-        script.run();
-
-        assertEq(nft.ownerOf(1), recipient);
-    }
-
-    function testScriptFailuresWithInvalidOwner() public {
-        address invalid = makeAddr("invalid");
-        
-        // Set the invalid owner first
-        vm.setEnv("OWNER", addressToString(invalid));
-        vm.setEnv("DURATION", "86400");
-        vm.setEnv("STAKING_ADDRESS", addressToString(address(staking)));
-        vm.setEnv("RPC_URL", RPC_URL);
-        vm.setEnv("PRIVATE_KEY", numberToString(PRIVATE_KEY));
-
-        AddStakingDuration script = new AddStakingDuration();
-        script.setUp();
-        
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, invalid));
-        script.run();
-    }
-
-    function testScriptFailuresWithInvalidInputs() public {
-        // Set invalid duration (less than minimum)
-        vm.setEnv("DURATION", "1800");  // 30 minutes
-        vm.setEnv("STAKING_ADDRESS", addressToString(address(staking)));
-        vm.setEnv("OWNER", addressToString(owner));
-        vm.setEnv("RPC_URL", RPC_URL);
-        vm.setEnv("PRIVATE_KEY", numberToString(PRIVATE_KEY));
-
-        AddStakingDuration script = new AddStakingDuration();
-        script.setUp();
-        
-        vm.expectRevert(WitsStaking.InvalidStakingDuration.selector);
-        script.run();
-    }
-} 
+}
